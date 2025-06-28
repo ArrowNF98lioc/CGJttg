@@ -15,4 +15,15 @@ public class MainMenu : MonoBehaviour
         Debug.Log("Quit");
         Application.Quit();
     }
+
+    public void OpenMenu()
+    {
+        SceneManager.LoadSceneAsync(0);
+    }
+
+    public void ReturnHome()
+    {
+        Debug.Log("Return Home");
+        SceneManager.LoadSceneAsync(1);
+    }
 }
