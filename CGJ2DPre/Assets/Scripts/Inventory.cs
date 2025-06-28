@@ -1,40 +1,45 @@
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.Events;
+using UnityEngine.UI;
 
 /// <summary>
-/// 背包系统 - 单槽位设计
-/// 管理玩家的物品存储、使用和交易
+/// 简化的背包系统
+/// 只负责存储拾取的物品
 /// </summary>
 public class Inventory : MonoBehaviour
 {
     [Header("背包设置")]
-    [SerializeField] private int maxSlots = 1;  // 背包槽位数（单槽位设计）
+    [SerializeField] private int maxSlots = 10;  // 背包槽位数
+    
+    [Header("背包UI设置")]
+    [SerializeField] private GameObject inventoryPanel;        // 背包面板
+    [SerializeField] private Transform slotsParent;            // 背包槽位父对象
+    [SerializeField] private GameObject slotPrefab;            // 背包槽位预制体
+    [SerializeField] private bool autoCreateSlots = true;      // 是否自动创建槽位
+    
+    [Header("物品图片设置")]
+    [SerializeField] private Sprite defaultSlotSprite;         // 默认槽位图片
+    [SerializeField] private Sprite emptySlotSprite;           // 空槽位图片
     
     [Header("调试")]
     [SerializeField] private bool showDebugInfo = false;
-    
-    [Header("事件")]
-    public UnityEvent<Item> OnItemAdded;        // 物品添加事件
-    public UnityEvent<Item> OnItemRemoved;      // 物品移除事件
-    public UnityEvent<Item> OnItemUsed;         // 物品使用事件
-    public UnityEvent OnInventoryFull;          // 背包满事件
-    public UnityEvent OnInventoryEmpty;         // 背包空事件
     
     // 单例模式
     public static Inventory Instance { get; private set; }
     
     // 背包数据
     private List<Item> items = new List<Item>();
-    private Health healthSystem;
+    
+    // UI相关
+    private List<InventorySlot> slots = new List<InventorySlot>();
+    private bool isInventoryOpen = false;
     
     // 属性
     public int CurrentItemCount => items.Count;
     public int MaxSlots => maxSlots;
     public bool IsFull => items.Count >= maxSlots;
     public bool IsEmpty => items.Count == 0;
-    public Item CurrentItem => items.Count > 0 ? items[0] : null;
+    public bool IsInventoryOpen => isInventoryOpen;
     
     private void Awake()
     {
@@ -49,18 +54,185 @@ public class Inventory : MonoBehaviour
             Destroy(gameObject);
             return;
         }
-        
-        // 查找生命值系统
-        healthSystem = FindObjectOfType<Health>();
-        if (healthSystem == null)
-        {
-            Debug.LogWarning("[Inventory] 未找到Health组件，药水使用功能将不可用");
-        }
     }
     
     private void Start()
     {
         Debug.Log($"[Inventory] 背包系统初始化完成 - 最大槽位: {maxSlots}");
+        
+        // 初始化背包UI
+        InitializeInventoryUI();
+        
+        // 同步GameDataManager数据
+        SyncWithGameDataManager();
+    }
+    
+    /// <summary>
+    /// 初始化背包UI
+    /// </summary>
+    private void InitializeInventoryUI()
+    {
+        if (inventoryPanel != null)
+        {
+            // 默认隐藏背包面板
+            inventoryPanel.SetActive(false);
+        }
+        
+        if (autoCreateSlots && slotsParent != null && slotPrefab != null)
+        {
+            CreateInventorySlots();
+        }
+        
+        // 更新背包显示
+        UpdateInventoryDisplay();
+    }
+    
+    /// <summary>
+    /// 创建背包槽位
+    /// </summary>
+    private void CreateInventorySlots()
+    {
+        // 清除现有槽位
+        foreach (Transform child in slotsParent)
+        {
+            Destroy(child.gameObject);
+        }
+        slots.Clear();
+        
+        // 创建新槽位
+        for (int i = 0; i < maxSlots; i++)
+        {
+            GameObject slotObj = Instantiate(slotPrefab, slotsParent);
+            InventorySlot slot = slotObj.GetComponent<InventorySlot>();
+            
+            if (slot == null)
+            {
+                slot = slotObj.AddComponent<InventorySlot>();
+            }
+            
+            slot.InitializeSlot(i, defaultSlotSprite, emptySlotSprite);
+            slots.Add(slot);
+        }
+        
+        Debug.Log($"[Inventory] 创建了 {maxSlots} 个背包槽位");
+    }
+    
+    /// <summary>
+    /// 更新背包显示
+    /// </summary>
+    public void UpdateInventoryDisplay()
+    {
+        if (slots.Count == 0)
+        {
+            Debug.LogWarning("[Inventory] 背包槽位未初始化");
+            return;
+        }
+        
+        // 更新所有槽位
+        for (int i = 0; i < slots.Count; i++)
+        {
+            if (i < items.Count)
+            {
+                // 有物品的槽位
+                slots[i].SetItem(items[i]);
+            }
+            else
+            {
+                // 空槽位
+                slots[i].ClearSlot();
+            }
+        }
+        
+        if (showDebugInfo)
+        {
+            Debug.Log($"[Inventory] 更新背包显示: {items.Count}/{maxSlots} 个物品");
+        }
+    }
+    
+    /// <summary>
+    /// 切换背包显示状态
+    /// </summary>
+    public void ToggleInventory()
+    {
+        isInventoryOpen = !isInventoryOpen;
+        
+        if (inventoryPanel != null)
+        {
+            inventoryPanel.SetActive(isInventoryOpen);
+        }
+        
+        if (isInventoryOpen)
+        {
+            UpdateInventoryDisplay();
+        }
+        
+        Debug.Log($"[Inventory] 背包状态: {(isInventoryOpen ? "打开" : "关闭")}");
+    }
+    
+    /// <summary>
+    /// 打开背包
+    /// </summary>
+    public void OpenInventory()
+    {
+        if (!isInventoryOpen)
+        {
+            ToggleInventory();
+        }
+    }
+    
+    /// <summary>
+    /// 关闭背包
+    /// </summary>
+    public void CloseInventory()
+    {
+        if (isInventoryOpen)
+        {
+            ToggleInventory();
+        }
+    }
+    
+    /// <summary>
+    /// 与GameDataManager同步数据
+    /// </summary>
+    private void SyncWithGameDataManager()
+    {
+        if (GameDataManager.Instance != null)
+        {
+            // 从GameDataManager加载已收集的物品
+            foreach (string itemName in GameDataManager.Instance.collectedItems)
+            {
+                if (!HasItem(itemName))
+                {
+                    AddItem(itemName);
+                }
+            }
+            
+            if (showDebugInfo)
+            {
+                Debug.Log($"[Inventory] 从GameDataManager同步了 {GameDataManager.Instance.collectedItems.Count} 个物品");
+            }
+        }
+    }
+    
+    /// <summary>
+    /// 同步数据到GameDataManager
+    /// </summary>
+    public void SyncToGameDataManager()
+    {
+        if (GameDataManager.Instance != null)
+        {
+            // 同步已收集的物品
+            GameDataManager.Instance.collectedItems.Clear();
+            foreach (var item in items)
+            {
+                GameDataManager.Instance.AddCollectedItem(item.name);
+            }
+            
+            if (showDebugInfo)
+            {
+                Debug.Log($"[Inventory] 同步了 {items.Count} 个物品到GameDataManager");
+            }
+        }
     }
     
     /// <summary>
@@ -76,7 +248,6 @@ public class Inventory : MonoBehaviour
             {
                 Debug.LogWarning($"[Inventory] 背包已满，无法添加物品: {itemName}");
             }
-            OnInventoryFull?.Invoke();
             return false;
         }
         
@@ -91,62 +262,18 @@ public class Inventory : MonoBehaviour
         // 添加物品
         items.Add(item);
         
+        // 更新背包显示
+        UpdateInventoryDisplay();
+        
+        // 同步到GameDataManager
+        SyncToGameDataManager();
+        
         if (showDebugInfo)
         {
-            Debug.Log($"[Inventory] 添加物品: {item.name} (类型: {item.type})");
+            Debug.Log($"[Inventory] 添加物品: {item.name} (健康值: {item.health}, 有生命: {item.hasLife})");
         }
         
-        OnItemAdded?.Invoke(item);
         return true;
-    }
-    
-    /// <summary>
-    /// 添加物品到背包（重载方法）
-    /// </summary>
-    /// <param name="item">物品对象</param>
-    /// <returns>是否添加成功</returns>
-    public bool AddItem(Item item)
-    {
-        if (item == null)
-        {
-            Debug.LogError("[Inventory] 尝试添加空物品");
-            return false;
-        }
-        
-        return AddItem(item.name);
-    }
-    
-    /// <summary>
-    /// 移除当前物品
-    /// </summary>
-    /// <returns>被移除的物品</returns>
-    public Item RemoveCurrentItem()
-    {
-        if (IsEmpty)
-        {
-            if (showDebugInfo)
-            {
-                Debug.LogWarning("[Inventory] 背包为空，无法移除物品");
-            }
-            return null;
-        }
-        
-        Item removedItem = items[0];
-        items.RemoveAt(0);
-        
-        if (showDebugInfo)
-        {
-            Debug.Log($"[Inventory] 移除物品: {removedItem.name}");
-        }
-        
-        OnItemRemoved?.Invoke(removedItem);
-        
-        if (IsEmpty)
-        {
-            OnInventoryEmpty?.Invoke();
-        }
-        
-        return removedItem;
     }
     
     /// <summary>
@@ -163,16 +290,15 @@ public class Inventory : MonoBehaviour
                 Item removedItem = items[i];
                 items.RemoveAt(i);
                 
+                // 更新背包显示
+                UpdateInventoryDisplay();
+                
+                // 同步到GameDataManager
+                SyncToGameDataManager();
+                
                 if (showDebugInfo)
                 {
                     Debug.Log($"[Inventory] 移除物品: {removedItem.name}");
-                }
-                
-                OnItemRemoved?.Invoke(removedItem);
-                
-                if (IsEmpty)
-                {
-                    OnInventoryEmpty?.Invoke();
                 }
                 
                 return true;
@@ -184,74 +310,6 @@ public class Inventory : MonoBehaviour
             Debug.LogWarning($"[Inventory] 背包中没有物品: {itemName}");
         }
         return false;
-    }
-    
-    /// <summary>
-    /// 使用当前物品
-    /// </summary>
-    /// <returns>是否使用成功</returns>
-    public bool UseCurrentItem()
-    {
-        if (IsEmpty)
-        {
-            if (showDebugInfo)
-            {
-                Debug.LogWarning("[Inventory] 背包为空，无法使用物品");
-            }
-            return false;
-        }
-        
-        Item currentItem = items[0];
-        
-        // 检查是否为药水
-        if (currentItem.type == ItemType.Potion)
-        {
-            return UsePotion(currentItem);
-        }
-        else
-        {
-            if (showDebugInfo)
-            {
-                Debug.LogWarning($"[Inventory] 物品 {currentItem.name} 不是药水，无法使用");
-            }
-            return false;
-        }
-    }
-    
-    /// <summary>
-    /// 使用药水
-    /// </summary>
-    /// <param name="potion">药水物品</param>
-    /// <returns>是否使用成功</returns>
-    private bool UsePotion(Item potion)
-    {
-        if (healthSystem == null)
-        {
-            Debug.LogError("[Inventory] 未找到Health组件，无法使用药水");
-            return false;
-        }
-        
-        // 恢复生命值
-        int healAmount = potion.healAmount;
-        healthSystem.Heal(healAmount);
-        
-        if (showDebugInfo)
-        {
-            Debug.Log($"[Inventory] 使用药水: {potion.name}，恢复生命值: {healAmount}");
-        }
-        
-        // 移除药水
-        items.RemoveAt(0);
-        
-        OnItemUsed?.Invoke(potion);
-        OnItemRemoved?.Invoke(potion);
-        
-        if (IsEmpty)
-        {
-            OnInventoryEmpty?.Invoke();
-        }
-        
-        return true;
     }
     
     /// <summary>
@@ -271,40 +329,16 @@ public class Inventory : MonoBehaviour
         int itemCount = items.Count;
         items.Clear();
         
+        // 更新背包显示
+        UpdateInventoryDisplay();
+        
+        // 同步到GameDataManager
+        SyncToGameDataManager();
+        
         if (showDebugInfo)
         {
             Debug.Log($"[Inventory] 清空背包，移除了 {itemCount} 个物品");
         }
-        
-        OnInventoryEmpty?.Invoke();
-    }
-    
-    /// <summary>
-    /// 获取当前物品信息
-    /// </summary>
-    /// <returns>当前物品信息字符串</returns>
-    public string GetCurrentItemInfo()
-    {
-        if (IsEmpty)
-        {
-            return "背包为空";
-        }
-        
-        Item item = items[0];
-        string info = $"当前物品: {item.name}\n";
-        info += $"类型: {item.type}\n";
-        info += $"描述: {item.description}\n";
-        
-        if (item.type == ItemType.Potion)
-        {
-            info += $"恢复生命值: {item.healAmount}\n";
-        }
-        else if (item.tradeValue > 0)
-        {
-            info += $"交易价值: {item.tradeValue}\n";
-        }
-        
-        return info;
     }
     
     /// <summary>
@@ -318,27 +352,43 @@ public class Inventory : MonoBehaviour
     }
     
     /// <summary>
-    /// 检查当前物品是否为可交易物品
+    /// 获取指定槽位的物品
     /// </summary>
-    /// <returns>是否为可交易物品</returns>
-    public bool IsCurrentItemTradeable()
+    /// <param name="slotIndex">槽位索引</param>
+    /// <returns>物品对象，如果槽位为空则返回null</returns>
+    public Item GetItemAtSlot(int slotIndex)
     {
-        if (IsEmpty) return false;
-        
-        Item currentItem = items[0];
-        return currentItem.tradeValue > 0 && currentItem.type != ItemType.Quest;
+        if (slotIndex >= 0 && slotIndex < items.Count)
+        {
+            return items[slotIndex];
+        }
+        return null;
     }
     
     /// <summary>
-    /// 获取当前物品的交易价值
+    /// 获取背包信息
     /// </summary>
-    /// <returns>交易价值，如果不是可交易物品则返回0</returns>
-    public int GetCurrentItemTradeValue()
+    /// <returns>背包信息字符串</returns>
+    public string GetInventoryInfo()
     {
-        if (IsEmpty) return 0;
+        string info = $"背包信息: {CurrentItemCount}/{MaxSlots}\n";
+        info += $"背包状态: {(isInventoryOpen ? "打开" : "关闭")}\n";
         
-        Item currentItem = items[0];
-        return currentItem.tradeValue;
+        if (IsEmpty)
+        {
+            info += "背包为空";
+        }
+        else
+        {
+            info += "物品列表:\n";
+            for (int i = 0; i < items.Count; i++)
+            {
+                var item = items[i];
+                info += $"{i + 1}. {item.name}: 健康值={item.health}, 有生命={item.hasLife}\n";
+            }
+        }
+        
+        return info;
     }
     
     /// <summary>
@@ -346,43 +396,24 @@ public class Inventory : MonoBehaviour
     /// </summary>
     public void ShowInventoryInfo()
     {
-        string info = $"[Inventory] 背包信息:\n";
-        info += $"槽位数: {CurrentItemCount}/{MaxSlots}\n";
-        info += $"状态: {(IsFull ? "已满" : IsEmpty ? "为空" : "有物品")}\n";
-        
-        if (!IsEmpty)
-        {
-            info += $"当前物品: {CurrentItem.name} (类型: {CurrentItem.type})";
-        }
-        
-        Debug.Log(info);
+        Debug.Log(GetInventoryInfo());
     }
     
     /// <summary>
-    /// 设置背包槽位数
+    /// 设置背包UI组件
     /// </summary>
-    /// <param name="newMaxSlots">新的最大槽位数</param>
-    public void SetMaxSlots(int newMaxSlots)
+    /// <param name="panel">背包面板</param>
+    /// <param name="parent">槽位父对象</param>
+    /// <param name="prefab">槽位预制体</param>
+    public void SetInventoryUI(GameObject panel, Transform parent, GameObject prefab)
     {
-        if (newMaxSlots < 1)
-        {
-            Debug.LogError("[Inventory] 槽位数不能小于1");
-            return;
-        }
+        inventoryPanel = panel;
+        slotsParent = parent;
+        slotPrefab = prefab;
         
-        maxSlots = newMaxSlots;
+        Debug.Log("[Inventory] 设置背包UI组件完成");
         
-        // 如果当前物品数量超过新的槽位数，移除多余的物品
-        while (items.Count > maxSlots)
-        {
-            Item removedItem = items[items.Count - 1];
-            items.RemoveAt(items.Count - 1);
-            OnItemRemoved?.Invoke(removedItem);
-        }
-        
-        if (showDebugInfo)
-        {
-            Debug.Log($"[Inventory] 背包槽位数设置为: {maxSlots}");
-        }
+        // 重新初始化UI
+        InitializeInventoryUI();
     }
 } 
