@@ -1126,6 +1126,7 @@ MonoBehaviour:
   normalSprite: {fileID: 21300000, guid: 27db02360ae6ba8419ab2a4e6d4ad510, type: 3}
   closeSprite: {fileID: 21300000, guid: 73b5af92a4aa2ff48b79979c198c04ac, type: 3}
   closeDistance: 5
+  showDebugInfo: 0
 --- !u!61 &1055687801
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -1316,6 +1317,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 449d0eaf6b4da204192c39f08b282163, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  showDebugInfo: 0
 --- !u!224 &1154601400
 RectTransform:
   m_ObjectHideFlags: 0
@@ -2486,7 +2488,7 @@ SpriteRenderer:
   m_LightmapParameters: {fileID: 0}
   m_SortingLayerID: 0
   m_SortingLayer: 0
-  m_SortingOrder: 0
+  m_SortingOrder: 1
   m_Sprite: {fileID: 21300000, guid: 0ac8b03d0917c44439d06de9d37d763c, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0

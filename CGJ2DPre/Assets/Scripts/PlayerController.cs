@@ -4,6 +4,8 @@ using UnityEngine;
 
 public class PlayerController : MonoBehaviour
 {
+    public static PlayerController Instance { get; private set; }
+
     [Header("移动设置")]
     public float baseMoveSpeed = 5f;  // 基础移动速度
     
@@ -24,6 +26,16 @@ public class PlayerController : MonoBehaviour
 
     private void Awake()
     {
+        if (Instance == null)
+        {
+            Instance = this;
+            DontDestroyOnLoad(gameObject);
+        }
+        else
+        {
+            Destroy(gameObject);
+        }
+        
         animator = GetComponent<Animator>();
         playerHealth = GetComponent<Player>();
         
@@ -52,6 +64,8 @@ public class PlayerController : MonoBehaviour
             Debug.Log("input.x:" + input.x);
             Debug.Log("input.y:" + input.y);
         }
+
+        animator.SetInteger("Status", playerHealth.GetHealthStageNumber(playerHealth.GetHealthStage()));
         
         // 如果有输入且当前没有在移动
         if (input != Vector2.zero && !isMoving)
@@ -84,6 +98,7 @@ public class PlayerController : MonoBehaviour
         }
 
         animator.SetBool("isMoving", isMoving);
+        
     }
     
     /// <summary>

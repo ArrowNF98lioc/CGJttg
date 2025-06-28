@@ -9,7 +9,7 @@ using UnityEngine.UI;
 public class Inventory : MonoBehaviour
 {
     [Header("背包设置")]
-    [SerializeField] private int maxSlots = 10;  // 背包槽位数
+    [SerializeField] private int maxSlots = 1000;  // 背包槽位数
     
     [Header("背包UI设置")]
     [SerializeField] private GameObject inventoryPanel;        // 背包面板
@@ -198,19 +198,52 @@ public class Inventory : MonoBehaviour
     {
         if (GameDataManager.Instance != null)
         {
+            if (showDebugInfo)
+            {
+                Debug.Log($"[Inventory] 开始从GameDataManager同步数据: 当前背包物品数={CurrentItemCount}/{MaxSlots}");
+                Debug.Log($"[Inventory] GameDataManager中的物品数量: {GameDataManager.Instance.collectedItems.Count}");
+            }
+            
+            int successCount = 0;
+            int failCount = 0;
+            
             // 从GameDataManager加载已收集的物品
             foreach (string itemName in GameDataManager.Instance.collectedItems)
             {
                 if (!HasItem(itemName))
                 {
-                    AddItem(itemName);
+                    bool success = AddItem(itemName);
+                    if (success)
+                    {
+                        successCount++;
+                        if (showDebugInfo)
+                        {
+                            Debug.Log($"[Inventory] 成功从GameDataManager添加物品: {itemName}");
+                        }
+                    }
+                    else
+                    {
+                        failCount++;
+                        Debug.LogWarning($"[Inventory] 无法从GameDataManager添加物品: {itemName} - 背包可能已满或物品不存在");
+                    }
+                }
+                else
+                {
+                    if (showDebugInfo)
+                    {
+                        Debug.Log($"[Inventory] 物品已存在，跳过: {itemName}");
+                    }
                 }
             }
             
             if (showDebugInfo)
             {
-                Debug.Log($"[Inventory] 从GameDataManager同步了 {GameDataManager.Instance.collectedItems.Count} 个物品");
+                Debug.Log($"[Inventory] 从GameDataManager同步完成: 成功={successCount}, 失败={failCount}, 最终背包物品数={CurrentItemCount}");
             }
+        }
+        else
+        {
+            Debug.LogWarning("[Inventory] GameDataManager实例未找到，无法同步数据");
         }
     }
     
@@ -397,6 +430,115 @@ public class Inventory : MonoBehaviour
     public void ShowInventoryInfo()
     {
         Debug.Log(GetInventoryInfo());
+    }
+    
+    /// <summary>
+    /// 测试背包同步功能
+    /// </summary>
+    [ContextMenu("测试背包同步")]
+    public void TestInventorySync()
+    {
+        Debug.Log("=== 开始测试背包同步功能 ===");
+        
+        // 显示当前状态
+        DiagnoseInventoryIssues();
+        
+        // 测试添加物品
+        Debug.Log("测试添加物品...");
+        bool success1 = AddItem("项链");
+        bool success2 = AddItem("茶壶");
+        bool success3 = AddItem("植物");
+        
+        Debug.Log($"添加结果: 项链={success1}, 茶壶={success2}, 植物={success3}");
+        
+        // 显示同步后的状态
+        Debug.Log("同步后的状态:");
+        DiagnoseInventoryIssues();
+        
+        Debug.Log("=== 背包同步测试完成 ===");
+    }
+    
+    /// <summary>
+    /// 诊断背包状态问题
+    /// </summary>
+    public void DiagnoseInventoryIssues()
+    {
+        Debug.Log("=== 背包状态诊断 ===");
+        Debug.Log($"当前物品数量: {CurrentItemCount}");
+        Debug.Log($"最大槽位数: {MaxSlots}");
+        Debug.Log($"背包是否已满: {IsFull}");
+        Debug.Log($"背包是否为空: {IsEmpty}");
+        
+        if (IsFull)
+        {
+            Debug.LogWarning("背包已满！这可能导致无法添加新物品。");
+            Debug.LogWarning("建议检查是否有重复物品或清理背包。");
+        }
+        
+        if (CurrentItemCount > 0)
+        {
+            Debug.Log("当前背包中的物品:");
+            for (int i = 0; i < items.Count; i++)
+            {
+                var item = items[i];
+                Debug.Log($"  {i + 1}. {item.name} (健康值: {item.health}, 有生命: {item.hasLife})");
+            }
+        }
+        
+        // 检查GameDataManager中的物品
+        if (GameDataManager.Instance != null)
+        {
+            Debug.Log($"GameDataManager中的物品数量: {GameDataManager.Instance.collectedItems.Count}");
+            if (GameDataManager.Instance.collectedItems.Count > 0)
+            {
+                Debug.Log("GameDataManager中的物品:");
+                foreach (string itemName in GameDataManager.Instance.collectedItems)
+                {
+                    Debug.Log($"  - {itemName}");
+                }
+            }
+        }
+        
+        Debug.Log("=== 诊断完成 ===");
+    }
+    
+    /// <summary>
+    /// 获取背包中所有物品的健康值总和
+    /// </summary>
+    /// <returns>健康值总和</returns>
+    public int GetTotalHealthValue()
+    {
+        int totalHealth = 0;
+        foreach (var item in items)
+        {
+            totalHealth += item.health;
+        }
+        return totalHealth;
+    }
+    
+    /// <summary>
+    /// 获取背包中所有物品的详细信息
+    /// </summary>
+    /// <returns>物品详细信息字符串</returns>
+    public string GetItemsDetails()
+    {
+        if (IsEmpty)
+        {
+            return "背包为空";
+        }
+        
+        string details = $"背包中共有 {items.Count} 个物品:\n";
+        int totalHealth = 0;
+        
+        for (int i = 0; i < items.Count; i++)
+        {
+            var item = items[i];
+            details += $"{i + 1}. {item.name}: 健康值={item.health}, 有生命={item.hasLife}\n";
+            totalHealth += item.health;
+        }
+        
+        details += $"总健康值: {totalHealth}";
+        return details;
     }
     
     /// <summary>

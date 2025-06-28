@@ -39,6 +39,12 @@ public class MainMenu : MonoBehaviour
         Debug.Log("[MainMenu] 打开画廊");
         LoadSceneWithDataSync(2);
     }
+
+    public void OpenShop()
+    {
+        Debug.Log("[MainMenu] 打开商店");
+        LoadSceneWithDataSync(3);
+    }
     
     /// <summary>
     /// 使用数据同步加载场景

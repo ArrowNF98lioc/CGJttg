@@ -40,7 +40,7 @@ public class GameDataManager : MonoBehaviour
     public float sfxVolume = 0.9f;         // 音效音量
     public bool enableTimeDecay = true;     // 是否启用时间流逝
     public float timeDecayInterval = 6f;    // 时间流逝间隔
-    public int timeDecayAmount = 2;         // 时间流逝数量
+    public int timeDecayAmount = 5;         // 时间流逝数量
     
     private void Awake()
     {
@@ -116,7 +116,7 @@ public class GameDataManager : MonoBehaviour
         SyncDataToPlayer();
         
         // 同步Inventory数据
-        SyncDataToInventory();
+        // SyncDataToInventory();
         
         // 同步UI数据
         SyncDataToUI();
@@ -168,32 +168,61 @@ public class GameDataManager : MonoBehaviour
     /// <summary>
     /// 同步数据到Inventory组件
     /// </summary>
-    public void SyncDataToInventory()
-    {
-        if (Inventory.Instance != null)
-        {
-            // 清空当前背包
-            Inventory.Instance.ClearInventory();
+    // public void SyncDataToInventory()
+    // {
+    //     if (Inventory.Instance != null)
+    //     {
+    //         if (showDebugInfo)
+    //         {
+    //             Debug.Log($"[GameDataManager] 开始同步Inventory数据: 当前背包物品数={Inventory.Instance.CurrentItemCount}/{Inventory.Instance.MaxSlots}");
+    //             Debug.Log($"[GameDataManager] 需要同步的物品数量: {collectedItems.Count}");
+    //         }
             
-            // 重新添加已收集的物品
-            foreach (string itemName in collectedItems)
-            {
-                Inventory.Instance.AddItem(itemName);
-            }
+    //         // 如果背包已满，先进行诊断
+    //         if (Inventory.Instance.IsFull)
+    //         {
+    //             Debug.LogWarning("[GameDataManager] 检测到背包已满，进行诊断...");
+    //             Inventory.Instance.DiagnoseInventoryIssues();
+    //         }
             
-            // 更新背包显示
-            Inventory.Instance.UpdateInventoryDisplay();
+    //         // 清空当前背包
+    //         Inventory.Instance.ClearInventory();
             
-            if (showDebugInfo)
-            {
-                Debug.Log($"[GameDataManager] 同步Inventory数据: 物品数量={collectedItems.Count}");
-            }
-        }
-        else
-        {
-            Debug.LogWarning("[GameDataManager] Inventory实例未找到，无法同步数据");
-        }
-    }
+    //         // 重新添加已收集的物品
+    //         int successCount = 0;
+    //         int failCount = 0;
+            
+    //         foreach (string itemName in collectedItems)
+    //         {
+    //             bool success = Inventory.Instance.AddItem(itemName);
+    //             if (success)
+    //             {
+    //                 successCount++;
+    //                 if (showDebugInfo)
+    //                 {
+    //                     Debug.Log($"[GameDataManager] 成功添加物品: {itemName}");
+    //                 }
+    //             }
+    //             else
+    //             {
+    //                 failCount++;
+    //                 Debug.LogError($"[GameDataManager] 无法添加物品到背包: {itemName} - 背包可能已满或物品不存在");
+    //             }
+    //         }
+            
+    //         // 更新背包显示
+    //         Inventory.Instance.UpdateInventoryDisplay();
+            
+    //         if (showDebugInfo)
+    //         {
+    //             Debug.Log($"[GameDataManager] 同步Inventory数据完成: 成功={successCount}, 失败={failCount}, 最终背包物品数={Inventory.Instance.CurrentItemCount}");
+    //         }
+    //     }
+    //     else
+    //     {
+    //         Debug.LogWarning("[GameDataManager] Inventory实例未找到，无法同步数据");
+    //     }
+    // }
     
     /// <summary>
     /// 同步数据到UI组件
