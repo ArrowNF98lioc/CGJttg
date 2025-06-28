@@ -1,0 +1,3 @@
+repository "CGJ2DPre/CGJ2DPre@1375803636336@cloud"
+  path "/"
+    smartbranch "/main"
