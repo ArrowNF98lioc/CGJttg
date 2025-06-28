@@ -14,12 +14,12 @@ public class Player : MonoBehaviour
     
     [Header("生命值设置")]
     [SerializeField] private int maxHealth = 100;        // 最大生命值
-    [SerializeField] private int currentHealth = 60;    // 当前生命值
+    [SerializeField] private int currentHealth = 100;    // 当前生命值
     
     [Header("时间流逝设置")]
     [SerializeField] private bool enableTimeDecay = true;  // 是否启用时间流逝
-    [SerializeField] private float decayInterval = 5f;     // 健康值减少间隔（秒）
-    [SerializeField] private int decayAmount = 10;          // 每次减少的健康值
+    [SerializeField] private float decayInterval = 6f;     // 健康值减少间隔（秒）
+    [SerializeField] private int decayAmount = 2;          // 每次减少的健康值
     
     [Header("背包检测设置")]
     [SerializeField] public bool enableInventoryCheck = true;  // 是否启用背包检测
@@ -98,8 +98,21 @@ public class Player : MonoBehaviour
         
         Debug.Log($"[Player] 生命值系统初始化完成 - 当前生命值: {currentHealth}/{maxHealth}");
         
+        // 同步GameDataManager数据（如果存在）
+        SyncWithGameDataManager();
+        
         // 验证背包检测设置
         Debug.Log($"[Player] 背包检测启用状态: {enableInventoryCheck}");
+        
+        // 显示Inspector设置指导
+        Debug.Log("[Player] ===== Inspector设置指导 =====");
+        Debug.Log("[Player] 1. 在Player组件的Inspector中找到'物品UI映射列表'部分");
+        Debug.Log("[Player] 2. 设置'Item UIMappings'的Size为你需要的映射数量");
+        Debug.Log("[Player] 3. 为每个Element设置:");
+        Debug.Log("[Player]    - Item Name: 输入物品名称（如'项链'、'茶壶'）");
+        Debug.Log("[Player]    - UI GameObject: 拖拽对应的UI GameObject");
+        Debug.Log("[Player]    - Show Debug Info: 可选，开启调试信息");
+        Debug.Log("[Player] =================================");
         
         // 验证物品UI映射设置
         ValidateItemUIMappings();
@@ -123,6 +136,51 @@ public class Player : MonoBehaviour
         if (enableInventoryCheck)
         {
             CheckInventoryStatus();
+        }
+        
+        // 同步数据到GameDataManager
+        if (GameDataManager.Instance != null)
+        {
+            GameDataManager.Instance.UpdatePlayTime(Time.deltaTime);
+        }
+    }
+    
+    /// <summary>
+    /// 与GameDataManager同步数据
+    /// </summary>
+    private void SyncWithGameDataManager()
+    {
+        if (GameDataManager.Instance != null)
+        {
+            // 从GameDataManager加载数据
+            maxHealth = GameDataManager.Instance.playerMaxHealth;
+            currentHealth = GameDataManager.Instance.playerCurrentHealth;
+            
+            // 加载当前物品
+            if (!string.IsNullOrEmpty(GameDataManager.Instance.playerCurrentItem))
+            {
+                if (ItemManager.Instance != null)
+                {
+                    currentItem = ItemManager.Instance.GetItem(GameDataManager.Instance.playerCurrentItem);
+                }
+            }
+            
+            Debug.Log($"[Player] 从GameDataManager同步数据: 生命值={currentHealth}/{maxHealth}, 物品={GameDataManager.Instance.playerCurrentItem}");
+        }
+    }
+    
+    /// <summary>
+    /// 同步数据到GameDataManager
+    /// </summary>
+    public void SyncToGameDataManager()
+    {
+        if (GameDataManager.Instance != null)
+        {
+            GameDataManager.Instance.playerMaxHealth = maxHealth;
+            GameDataManager.Instance.playerCurrentHealth = currentHealth;
+            GameDataManager.Instance.playerCurrentItem = currentItem != null ? currentItem.name : "";
+            
+            Debug.Log($"[Player] 同步数据到GameDataManager: 生命值={currentHealth}/{maxHealth}, 物品={GameDataManager.Instance.playerCurrentItem}");
         }
     }
     
@@ -191,7 +249,7 @@ public class Player : MonoBehaviour
             {
                 mapping.uiGameObject.SetActive(true);
                 
-                if (showDebugInfo)
+                if (showDebugInfo || mapping.showDebugInfo)
                 {
                     Debug.Log($"[Player] 激活物品UI: {itemName} -> {mapping.uiGameObject.name}");
                 }
@@ -203,6 +261,13 @@ public class Player : MonoBehaviour
         if (showDebugInfo)
         {
             Debug.LogWarning($"[Player] 未找到物品 '{itemName}' 对应的UI映射");
+            Debug.LogWarning($"[Player] 当前映射列表:");
+            for (int i = 0; i < itemUIMappings.Count; i++)
+            {
+                var mapping = itemUIMappings[i];
+                string uiName = mapping.uiGameObject != null ? mapping.uiGameObject.name : "null";
+                Debug.LogWarning($"[Player]   {i}: {mapping.itemName} -> {uiName}");
+            }
         }
     }
     
@@ -344,6 +409,56 @@ public class Player : MonoBehaviour
     public void ShowItemUIMappingListInfo()
     {
         Debug.Log(GetItemUIMappingListInfo());
+    }
+    
+    /// <summary>
+    /// 测试方法：帮助在Inspector中找到设置位置
+    /// </summary>
+    [ContextMenu("显示Inspector设置指导")]
+    public void ShowInspectorSetupGuide()
+    {
+        Debug.Log("[Player] ===== Inspector设置指导 =====");
+        Debug.Log("[Player] 1. 在Player组件的Inspector中找到'物品UI映射列表'部分");
+        Debug.Log("[Player] 2. 设置'Item UIMappings'的Size为你需要的映射数量");
+        Debug.Log("[Player] 3. 为每个Element设置:");
+        Debug.Log("[Player]    - Item Name: 输入物品名称（如'项链'、'茶壶'）");
+        Debug.Log("[Player]    - UI GameObject: 拖拽对应的UI GameObject");
+        Debug.Log("[Player]    - Show Debug Info: 可选，开启调试信息");
+        Debug.Log("[Player] =================================");
+        
+        Debug.Log($"[Player] 当前映射数量: {itemUIMappings.Count}");
+        if (itemUIMappings.Count > 0)
+        {
+            Debug.Log("[Player] 当前映射列表:");
+            for (int i = 0; i < itemUIMappings.Count; i++)
+            {
+                var mapping = itemUIMappings[i];
+                string uiName = mapping.uiGameObject != null ? mapping.uiGameObject.name : "null";
+                Debug.Log($"[Player]   {i}: {mapping.itemName} -> {uiName}");
+            }
+        }
+        else
+        {
+            Debug.LogWarning("[Player] 映射列表为空，请在Inspector中添加映射");
+        }
+    }
+    
+    /// <summary>
+    /// 测试方法：添加示例映射
+    /// </summary>
+    [ContextMenu("添加示例映射")]
+    public void AddExampleMappings()
+    {
+        Debug.Log("[Player] 添加示例映射...");
+        
+        // 注意：这些是示例，你需要用实际的GameObject替换
+        AddItemUIMappingToList("项链", null, true);
+        AddItemUIMappingToList("茶壶", null, true);
+        AddItemUIMappingToList("植物", null, true);
+        AddItemUIMappingToList("猫", null, true);
+        
+        Debug.Log("[Player] 示例映射已添加，请在Inspector中设置对应的UI GameObject");
+        ShowItemUIMappingListInfo();
     }
     
     /// <summary>
@@ -494,6 +609,9 @@ public class Player : MonoBehaviour
             }
         }
         
+        // 同步数据到GameDataManager
+        SyncToGameDataManager();
+        
         if (showDebugInfo)
         {
             Debug.Log($"[Player] 设置生命值: {oldHealth} -> {currentHealth}");
@@ -535,15 +653,15 @@ public class Player : MonoBehaviour
     {
         float percentage = HealthPercentage;
         
-        if (percentage >= 0.6f) // 67%以上为阶段1
+        if (percentage >= 0.67f) // 67%以上为阶段1
         {
             return HealthStage.Stage1;
         }
-        else if (percentage >= 0.25f) // 34%-66%为阶段2
+        else if (percentage >= 0.34f) // 34%-66%为阶段2
         {
             return HealthStage.Stage2;
         }
-        else // 10%-25%为阶段3
+        else // 33%以下为阶段3
         {
             return HealthStage.Stage3;
         }
@@ -568,21 +686,7 @@ public class Player : MonoBehaviour
                 return "未知阶段";
         }
     }
-
-    public int GetHealthStageNumber(HealthStage stage)
-    {
-        switch (stage)
-        {
-            case HealthStage.Stage1:
-                return 1;
-            case HealthStage.Stage2:
-                return 2;
-            case HealthStage.Stage3:
-                return 3;
-            default:
-                return 0;
-        }
-    }
+    
     /// <summary>
     /// 获取健康阶段名称
     /// </summary>
@@ -638,7 +742,7 @@ public class Player : MonoBehaviour
     }
     
     /// <summary>
-    /// 启用或禁用时间流逝
+    /// 设置时间流逝启用状态
     /// </summary>
     /// <param name="enable">是否启用</param>
     public void SetTimeDecayEnabled(bool enable)
@@ -654,7 +758,7 @@ public class Player : MonoBehaviour
             StopHealthDecay();
         }
         
-        Debug.Log($"[Player] 时间流逝: {(enable ? "启用" : "禁用")}");
+        Debug.Log($"[Player] 时间流逝状态设置为: {(enable ? "启用" : "禁用")}");
     }
     
     /// <summary>
@@ -666,10 +770,9 @@ public class Player : MonoBehaviour
         string stageName = GetHealthStageName(currentStage);
         
         // 通知PlayerController更新移动速度
-        PlayerController playerController = GetComponent<PlayerController>();
-        if (playerController != null)
+        if (PlayerController.Instance != null)
         {
-            playerController.ForceUpdateSpeed();
+        //    PlayerController.Instance.UpdateSpeedBasedOnHealthStage(currentStage);
         }
         
         if (showDebugInfo)
@@ -692,28 +795,6 @@ public class Player : MonoBehaviour
         if (showDebugInfo)
         {
             Debug.Log($"[Player] 物品UI映射更新完成，当前物品: {(currentItem != null ? currentItem.name : "无")}");
-        }
-    }
-    
-    /// <summary>
-    /// 同步数据到GameDataManager
-    /// </summary>
-    public void SyncToGameDataManager()
-    {
-        if (GameDataManager.Instance != null)
-        {
-            GameDataManager.Instance.playerMaxHealth = maxHealth;
-            GameDataManager.Instance.playerCurrentHealth = currentHealth;
-            GameDataManager.Instance.playerCurrentItem = currentItem != null ? currentItem.name : "";
-            
-            if (showDebugInfo)
-            {
-                Debug.Log($"[Player] 同步数据到GameDataManager: 生命值={currentHealth}/{maxHealth}, 物品={GameDataManager.Instance.playerCurrentItem}");
-            }
-        }
-        else
-        {
-            Debug.LogWarning("[Player] GameDataManager实例未找到，无法同步数据");
         }
     }
     
@@ -745,7 +826,7 @@ public class Player : MonoBehaviour
         Debug.Log("[Player] 场景切换，开始同步数据...");
         
         // 同步GameDataManager数据
-        SyncToGameDataManager();
+        SyncWithGameDataManager();
         
         // 更新健康阶段
         UpdateHealthStage();

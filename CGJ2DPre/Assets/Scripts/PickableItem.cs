@@ -255,11 +255,11 @@ public class PickableItem : MonoBehaviour
         startPosition = transform.position;
         
         // 激活指定的UI GameObject
-        if (uiGameObject != null)
-        {
-            uiGameObject.SetActive(true);
-            Debug.Log($"[PickableItem] 激活UI GameObject: {uiGameObject.name}");
-        }
+        //if (uiGameObject != null)
+        //{
+        //    uiGameObject.SetActive(true);
+        //    Debug.Log($"[PickableItem] 激活UI GameObject: {uiGameObject.name}");
+        //}
         
         // 禁用碰撞器，避免继续触发
         Collider2D col = GetComponent<Collider2D>();
@@ -289,7 +289,7 @@ public class PickableItem : MonoBehaviour
         
         // 计算目标位置（世界坐标）
         Vector3 targetWorldPos = uiTarget.position;
-        
+
         // 插值移动
         transform.position = Vector3.Lerp(startPosition, targetWorldPos, easeProgress);
         

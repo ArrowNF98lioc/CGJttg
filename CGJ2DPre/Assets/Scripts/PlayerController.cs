@@ -64,8 +64,6 @@ public class PlayerController : MonoBehaviour
             Debug.Log("input.x:" + input.x);
             Debug.Log("input.y:" + input.y);
         }
-
-        animator.SetInteger("Status", playerHealth.GetHealthStageNumber(playerHealth.GetHealthStage()));
         
         // 如果有输入且当前没有在移动
         if (input != Vector2.zero && !isMoving)
@@ -98,7 +96,6 @@ public class PlayerController : MonoBehaviour
         }
 
         animator.SetBool("isMoving", isMoving);
-        
     }
     
     /// <summary>

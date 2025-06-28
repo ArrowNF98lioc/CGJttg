@@ -44,9 +44,9 @@ public class ItemManager : MonoBehaviour
         Debug.Log("[ItemManager] 开始添加物品到数据库...");
         
         // 添加一些示例物品
-        AddItem("项链", 10, false);
-        AddItem("猫", 40, true);
-        AddItem("植物", 20, true);
+        AddItem("项链", 100, false);
+        AddItem("猫", 50, true);
+        AddItem("植物", 30, true);
         AddItem("茶壶", 80, false);
         
         Debug.Log($"[ItemManager] 物品数据库初始化完成，共添加 {itemDatabase.Count} 个物品");

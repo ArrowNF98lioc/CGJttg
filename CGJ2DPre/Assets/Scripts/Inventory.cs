@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
@@ -40,6 +41,8 @@ public class Inventory : MonoBehaviour
     public bool IsFull => items.Count >= maxSlots;
     public bool IsEmpty => items.Count == 0;
     public bool IsInventoryOpen => isInventoryOpen;
+
+    public event Action<List<Item>> onItemChanged;
     
     private void Awake()
     {
@@ -51,6 +54,7 @@ public class Inventory : MonoBehaviour
         }
         else
         {
+            onItemChanged = null;
             Destroy(gameObject);
             return;
         }
@@ -116,7 +120,9 @@ public class Inventory : MonoBehaviour
         
         Debug.Log($"[Inventory] 创建了 {maxSlots} 个背包槽位");
     }
-    
+
+    public List<Item> GetAllItems() => new List<Item>(items);
+
     /// <summary>
     /// 更新背包显示
     /// </summary>
@@ -294,6 +300,7 @@ public class Inventory : MonoBehaviour
         
         // 添加物品
         items.Add(item);
+        onItemChanged?.Invoke(items);
         
         // 更新背包显示
         UpdateInventoryDisplay();
@@ -337,7 +344,8 @@ public class Inventory : MonoBehaviour
                 return true;
             }
         }
-        
+        onItemChanged?.Invoke(items);
+
         if (showDebugInfo)
         {
             Debug.LogWarning($"[Inventory] 背包中没有物品: {itemName}");
@@ -361,7 +369,8 @@ public class Inventory : MonoBehaviour
         
         int itemCount = items.Count;
         items.Clear();
-        
+        onItemChanged?.Invoke(items);
+
         // 更新背包显示
         UpdateInventoryDisplay();
         
@@ -503,45 +512,6 @@ public class Inventory : MonoBehaviour
     }
     
     /// <summary>
-    /// 获取背包中所有物品的健康值总和
-    /// </summary>
-    /// <returns>健康值总和</returns>
-    public int GetTotalHealthValue()
-    {
-        int totalHealth = 0;
-        foreach (var item in items)
-        {
-            totalHealth += item.health;
-        }
-        return totalHealth;
-    }
-    
-    /// <summary>
-    /// 获取背包中所有物品的详细信息
-    /// </summary>
-    /// <returns>物品详细信息字符串</returns>
-    public string GetItemsDetails()
-    {
-        if (IsEmpty)
-        {
-            return "背包为空";
-        }
-        
-        string details = $"背包中共有 {items.Count} 个物品:\n";
-        int totalHealth = 0;
-        
-        for (int i = 0; i < items.Count; i++)
-        {
-            var item = items[i];
-            details += $"{i + 1}. {item.name}: 健康值={item.health}, 有生命={item.hasLife}\n";
-            totalHealth += item.health;
-        }
-        
-        details += $"总健康值: {totalHealth}";
-        return details;
-    }
-    
-    /// <summary>
     /// 设置背包UI组件
     /// </summary>
     /// <param name="panel">背包面板</param>
@@ -557,5 +527,56 @@ public class Inventory : MonoBehaviour
         
         // 重新初始化UI
         InitializeInventoryUI();
+    }
+    
+    /// <summary>
+    /// 获取背包中所有物品的总健康值
+    /// </summary>
+    /// <returns>总健康值</returns>
+    public int GetTotalHealthValue()
+    {
+        int totalHealth = 0;
+        foreach (var item in items)
+        {
+            totalHealth += item.health;
+        }
+        
+        if (showDebugInfo)
+        {
+            Debug.Log($"[Inventory] 计算总健康值: {totalHealth} (来自 {items.Count} 个物品)");
+        }
+        
+        return totalHealth;
+    }
+    
+    /// <summary>
+    /// 获取背包中所有物品的详细信息
+    /// </summary>
+    /// <returns>物品详细信息字符串</returns>
+    public string GetItemsDetails()
+    {
+        if (IsEmpty)
+        {
+            return "背包为空";
+        }
+        
+        string details = $"背包中有 {items.Count} 个物品:\n";
+        int totalHealth = 0;
+        
+        for (int i = 0; i < items.Count; i++)
+        {
+            var item = items[i];
+            details += $"{i + 1}. {item.name} (健康值: {item.health}, 有生命: {item.hasLife})\n";
+            totalHealth += item.health;
+        }
+        
+        details += $"\n总健康值: {totalHealth}";
+        
+        if (showDebugInfo)
+        {
+            Debug.Log($"[Inventory] 获取物品详情: {items.Count} 个物品，总健康值 {totalHealth}");
+        }
+        
+        return details;
     }
 } 
