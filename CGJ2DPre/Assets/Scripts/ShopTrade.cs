@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
+using System.Collections.Generic;
 
 /// <summary>
 /// 商店交易系统
@@ -39,6 +40,7 @@ public class ShopTrade : MonoBehaviour
     
     private void Update()
     {
+        InitializeUI();
         // 实时更新交易按钮状态
         UpdateTradeButtonState();
     }
@@ -79,17 +81,16 @@ public class ShopTrade : MonoBehaviour
     {
         if (tradeButton == null || tradeButtonText == null) return;
         
-        bool hasItems = Inventory.Instance != null && !Inventory.Instance.IsEmpty;
+        bool hasSelectedItems = HasSelectedItems();
         
         // 更新按钮可交互状态
-        tradeButton.interactable = hasItems;
+        tradeButton.interactable = hasSelectedItems;
         
         // 更新按钮文本
-        if (hasItems)
+        if (hasSelectedItems)
         {
-            int itemCount = Inventory.Instance.CurrentItemCount;
-            int totalHealth = Inventory.Instance.GetTotalHealthValue();
-            tradeButtonText.text = $"{tradeButtonDefaultText} ({itemCount}个物品, +{totalHealth}健康值)";
+            var selectedItemsInfo = GetSelectedItemsInfo();
+            tradeButtonText.text = $"{tradeButtonDefaultText} ({selectedItemsInfo.count}个物品, +{selectedItemsInfo.totalHealth}健康值)";
         }
         else
         {
@@ -98,19 +99,65 @@ public class ShopTrade : MonoBehaviour
     }
     
     /// <summary>
+    /// 检查是否有Selected状态的物品
+    /// </summary>
+    /// <returns>是否有Selected状态的物品</returns>
+    private bool HasSelectedItems()
+    {
+        if (GameDataManager.Instance == null) return false;
+        
+        foreach (var itemState in GameDataManager.Instance.itemStates)
+        {
+            if (itemState.Value == PickableItem.ItemStateType.Selected)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    /// <summary>
+    /// 获取Selected状态物品的信息
+    /// </summary>
+    /// <returns>物品信息（数量和总健康值）</returns>
+    private (int count, int totalHealth) GetSelectedItemsInfo()
+    {
+        int count = 0;
+        int totalHealth = 0;
+        
+        if (GameDataManager.Instance == null || ItemManager.Instance == null) 
+            return (count, totalHealth);
+        
+        foreach (var itemState in GameDataManager.Instance.itemStates)
+        {
+            if (itemState.Value == PickableItem.ItemStateType.Selected)
+            {
+                count++;
+                Item item = ItemManager.Instance.GetItem(itemState.Key);
+                if (item != null)
+                {
+                    totalHealth += item.health;
+                }
+            }
+        }
+        
+        return (count, totalHealth);
+    }
+    
+    /// <summary>
     /// 交易按钮点击事件
     /// </summary>
     public void OnTradeButtonClicked()
     {
-        if (Inventory.Instance == null)
+        if (GameDataManager.Instance == null)
         {
-            Debug.LogError("[ShopTrade] Inventory实例未找到");
+            Debug.LogError("[ShopTrade] GameDataManager实例未找到");
             return;
         }
         
-        if (Inventory.Instance.IsEmpty)
+        if (!HasSelectedItems())
         {
-            Debug.LogWarning("[ShopTrade] 背包为空，无法进行交易");
+            Debug.LogWarning("[ShopTrade] 没有Selected状态的物品，无法进行交易");
             return;
         }
         
@@ -136,16 +183,16 @@ public class ShopTrade : MonoBehaviour
         }
         
         // 生成确认文本
-        string itemsDetails = Inventory.Instance.GetItemsDetails();
-        int totalHealth = Inventory.Instance.GetTotalHealthValue();
+        string itemsDetails = GetSelectedItemsDetails();
+        var selectedItemsInfo = GetSelectedItemsInfo();
         int currentHealth = Player.Instance != null ? Player.Instance.CurrentHealth : 0;
-        int newHealth = currentHealth + totalHealth;
+        int newHealth = currentHealth + selectedItemsInfo.totalHealth;
         
-        string confirmationMessage = $"确认典当所有物品吗？\n\n";
-        confirmationMessage += $"当前物品:\n{itemsDetails}\n\n";
+        string confirmationMessage = $"确认典当所有Selected状态的物品吗？\n\n";
+        confirmationMessage += $"当前Selected物品:\n{itemsDetails}\n\n";
         confirmationMessage += $"当前健康值: {currentHealth}\n";
         confirmationMessage += $"交易后健康值: {newHealth}\n\n";
-        confirmationMessage += "交易后背包将被清空。";
+        confirmationMessage += "交易后Selected物品状态将变为Solved。";
         
         confirmationText.text = confirmationMessage;
         confirmationPanel.SetActive(true);
@@ -154,6 +201,43 @@ public class ShopTrade : MonoBehaviour
         {
             Debug.Log("[ShopTrade] 显示交易确认面板");
         }
+    }
+    
+    /// <summary>
+    /// 获取Selected状态物品的详细信息
+    /// </summary>
+    /// <returns>物品详细信息字符串</returns>
+    private string GetSelectedItemsDetails()
+    {
+        if (GameDataManager.Instance == null || ItemManager.Instance == null)
+            return "无法获取物品信息";
+        
+        string details = "";
+        int itemCount = 0;
+        
+        foreach (var itemState in GameDataManager.Instance.itemStates)
+        {
+            if (itemState.Value == PickableItem.ItemStateType.Selected)
+            {
+                itemCount++;
+                Item item = ItemManager.Instance.GetItem(itemState.Key);
+                if (item != null)
+                {
+                    details += $"{itemCount}. {item.name} (+{item.health}健康值)\n";
+                }
+                else
+                {
+                    details += $"{itemCount}. {itemState.Key} (健康值未知)\n";
+                }
+            }
+        }
+        
+        if (string.IsNullOrEmpty(details))
+        {
+            details = "没有Selected状态的物品";
+        }
+        
+        return details;
     }
     
     /// <summary>
@@ -194,9 +278,9 @@ public class ShopTrade : MonoBehaviour
     /// </summary>
     public void ExecuteTrade()
     {
-        if (Inventory.Instance == null)
+        if (GameDataManager.Instance == null)
         {
-            Debug.LogError("[ShopTrade] Inventory实例未找到");
+            Debug.LogError("[ShopTrade] GameDataManager实例未找到");
             return;
         }
         
@@ -206,48 +290,65 @@ public class ShopTrade : MonoBehaviour
             return;
         }
         
-        if (Inventory.Instance.IsEmpty)
+        if (!HasSelectedItems())
         {
-            Debug.LogWarning("[ShopTrade] 背包为空，无法进行交易");
+            Debug.LogWarning("[ShopTrade] 没有Selected状态的物品，无法进行交易");
             return;
         }
         
         // 获取交易前的状态
-        int itemCount = Inventory.Instance.CurrentItemCount;
-        int totalHealth = Inventory.Instance.GetTotalHealthValue();
+        var selectedItemsInfo = GetSelectedItemsInfo();
         int oldHealth = Player.Instance.CurrentHealth;
         
         // 执行交易
         // 1. 将物品的健康值加到玩家健康值上
-        int newHealth = oldHealth + totalHealth;
+        int newHealth = oldHealth + selectedItemsInfo.totalHealth;
         Player.Instance.SetHealth(newHealth);
 
         Debug.Log("[ShopTrade] 交易完成，玩家健康值: " + newHealth);
         
-        // 2. 清空背包
-        Inventory.Instance.ClearInventory();
+        // 2. 使用UpdateItemState方法更新物品状态，这样会触发CheckAllItemsSold检查
+        List<string> tradedItems = new List<string>();
+        
+        foreach (var itemState in GameDataManager.Instance.itemStates)
+        {
+            if (itemState.Value == PickableItem.ItemStateType.Selected)
+            {
+                // 使用UpdateItemState方法而不是直接修改字典
+                GameDataManager.Instance.UpdateItemState(itemState.Key, PickableItem.ItemStateType.Solved);
+                tradedItems.Add(itemState.Key);
+                
+                if (showDebugInfo)
+                {
+                    Debug.Log($"[ShopTrade] 物品状态更新: {itemState.Key} Selected → Solved");
+                }
+            }
+        }
         
         // 3. 同步数据到GameDataManager
-        if (GameDataManager.Instance != null)
-        {
-            GameDataManager.Instance.SyncInventoryData();
-        }
+        GameDataManager.Instance.SyncPlayerData();
         
         // 4. 更新UI
         UpdateTradeButtonState();
         
         // 显示交易结果
         string tradeResult = $"交易完成！\n";
-        tradeResult += $"典当了 {itemCount} 个物品\n";
-        tradeResult += $"获得 {totalHealth} 点健康值\n";
-        tradeResult += $"健康值: {oldHealth} → {newHealth}";
+        tradeResult += $"典当了 {selectedItemsInfo.count} 个Selected物品\n";
+        tradeResult += $"获得 {selectedItemsInfo.totalHealth} 点健康值\n";
+        tradeResult += $"健康值: {oldHealth} → {newHealth}\n";
+        tradeResult += $"交易物品: {string.Join(", ", tradedItems)}";
         
         Debug.Log($"[ShopTrade] {tradeResult}");
         
         if (showDebugInfo)
         {
-            Debug.Log($"[ShopTrade] 交易详情: 物品数={itemCount}, 健康值={totalHealth}, 旧健康值={oldHealth}, 新健康值={newHealth}");
+            Debug.Log($"[ShopTrade] 交易详情: 物品数={selectedItemsInfo.count}, 健康值={selectedItemsInfo.totalHealth}, 旧健康值={oldHealth}, 新健康值={newHealth}");
         }
+
+        // 更新商店物品的Active状态
+        ShopItemStateController shopController = FindObjectOfType<ShopItemStateController>();
+        if (shopController != null)
+            shopController.UpdateShopItemsActiveState();
     }
     
     /// <summary>
@@ -308,29 +409,29 @@ public class ShopTrade : MonoBehaviour
     /// <returns>交易信息字符串</returns>
     public string GetTradeInfo()
     {
-        if (Inventory.Instance == null)
+        if (GameDataManager.Instance == null)
         {
-            return "Inventory实例未找到";
+            return "GameDataManager实例未找到";
         }
         
-        if (Inventory.Instance.IsEmpty)
+        if (!HasSelectedItems())
         {
-            return "背包为空，无法交易";
+            return "没有Selected状态的物品，无法交易";
         }
         
-        string info = "当前可交易物品:\n";
-        info += Inventory.Instance.GetItemsDetails();
+        string info = "当前可交易物品 (Selected状态):\n";
+        info += GetSelectedItemsDetails();
         
         if (Player.Instance != null)
         {
-            int totalHealth = Inventory.Instance.GetTotalHealthValue();
+            var selectedItemsInfo = GetSelectedItemsInfo();
             int currentHealth = Player.Instance.CurrentHealth;
-            int newHealth = currentHealth + totalHealth;
+            int newHealth = currentHealth + selectedItemsInfo.totalHealth;
             
             info += $"\n交易效果:\n";
             info += $"当前健康值: {currentHealth}\n";
             info += $"交易后健康值: {newHealth}\n";
-            info += $"健康值增加: +{totalHealth}";
+            info += $"健康值增加: +{selectedItemsInfo.totalHealth}";
         }
         
         return info;

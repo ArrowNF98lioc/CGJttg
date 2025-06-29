@@ -1,6 +1,7 @@
 using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 
 /// <summary>
 /// 简化的生命值系统
@@ -14,12 +15,12 @@ public class Player : MonoBehaviour
     
     [Header("生命值设置")]
     [SerializeField] private int maxHealth = 100;        // 最大生命值
-    [SerializeField] private int currentHealth = 100;    // 当前生命值
+    [SerializeField] private int currentHealth = 59;    // 当前生命值
     
     [Header("时间流逝设置")]
     [SerializeField] private bool enableTimeDecay = true;  // 是否启用时间流逝
     [SerializeField] private float decayInterval = 6f;     // 健康值减少间隔（秒）
-    [SerializeField] private int decayAmount = 2;          // 每次减少的健康值
+    [SerializeField] private int decayAmount = 8;          // 每次减少的健康值
     
     [Header("背包检测设置")]
     [SerializeField] public bool enableInventoryCheck = true;  // 是否启用背包检测
@@ -74,6 +75,9 @@ public class Player : MonoBehaviour
         Stage3  // 健康阶段3
     }
     
+    // 添加一个标志来跟踪数据是否已经初始化
+    private bool dataInitialized = false;
+    
     private void Awake()
     {
         // 单例模式设置
@@ -82,6 +86,12 @@ public class Player : MonoBehaviour
             Instance = this;
             DontDestroyOnLoad(gameObject);
             Debug.Log("[Player] 单例模式初始化完成，数据将在场景间保持一致");
+            
+            // 立即从GameDataManager加载数据（如果存在）
+            if (GameDataManager.Instance != null)
+            {
+                SyncWithGameDataManager();
+            }
         }
         else
         {
@@ -98,8 +108,11 @@ public class Player : MonoBehaviour
         
         Debug.Log($"[Player] 生命值系统初始化完成 - 当前生命值: {currentHealth}/{maxHealth}");
         
-        // 同步GameDataManager数据（如果存在）
-        SyncWithGameDataManager();
+        // 如果还没有从GameDataManager同步过数据，则现在同步
+        if (!dataInitialized && GameDataManager.Instance != null)
+        {
+            SyncWithGameDataManager();
+        }
         
         // 验证背包检测设置
         Debug.Log($"[Player] 背包检测启用状态: {enableInventoryCheck}");
@@ -138,10 +151,12 @@ public class Player : MonoBehaviour
             CheckInventoryStatus();
         }
         
-        // 同步数据到GameDataManager
+        // 每帧同步数据到GameDataManager
         if (GameDataManager.Instance != null)
         {
             GameDataManager.Instance.UpdatePlayTime(Time.deltaTime);
+            // 每帧同步Player数据到GameDataManager - 但只在数据真正改变时才同步
+            SyncToGameDataManagerIfChanged();
         }
     }
     
@@ -165,12 +180,50 @@ public class Player : MonoBehaviour
                 }
             }
             
+            dataInitialized = true;
+            
             Debug.Log($"[Player] 从GameDataManager同步数据: 生命值={currentHealth}/{maxHealth}, 物品={GameDataManager.Instance.playerCurrentItem}");
         }
     }
     
     /// <summary>
-    /// 同步数据到GameDataManager
+    /// 同步数据到GameDataManager（只在数据真正改变时才同步）
+    /// </summary>
+    public void SyncToGameDataManagerIfChanged()
+    {
+        if (GameDataManager.Instance != null && dataInitialized)
+        {
+            // 检查数据是否真的改变了
+            bool dataChanged = false;
+            
+            if (GameDataManager.Instance.playerMaxHealth != maxHealth)
+            {
+                GameDataManager.Instance.playerMaxHealth = maxHealth;
+                dataChanged = true;
+            }
+            
+            if (GameDataManager.Instance.playerCurrentHealth != currentHealth)
+            {
+                GameDataManager.Instance.playerCurrentHealth = currentHealth;
+                dataChanged = true;
+            }
+            
+            string currentItemName = currentItem != null ? currentItem.name : "";
+            if (GameDataManager.Instance.playerCurrentItem != currentItemName)
+            {
+                GameDataManager.Instance.playerCurrentItem = currentItemName;
+                dataChanged = true;
+            }
+            
+            if (dataChanged && showDebugInfo)
+            {
+                Debug.Log($"[Player] 同步数据到GameDataManager: 生命值={currentHealth}/{maxHealth}, 物品={currentItemName}");
+            }
+        }
+    }
+    
+    /// <summary>
+    /// 同步数据到GameDataManager（强制同步，用于兼容性）
     /// </summary>
     public void SyncToGameDataManager()
     {
@@ -547,9 +600,25 @@ public class Player : MonoBehaviour
         {
             yield return new WaitForSeconds(decayInterval);
             
+            // 检查当前场景，在Gallery和Shop中停止时间流逝
+            string currentScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+            if (currentScene == "Gallery" || currentScene == "Shop" || currentScene == "MainMenu")
+            {
+                Debug.Log($"[Player] 在{currentScene}场景中，时间流逝暂停");
+                continue; // 跳过这次时间流逝
+            }
+
+            if (!GameDataManager.Instance.itemStates.Values.Any(value => value == PickableItem.ItemStateType.Solved))
+            {
+                continue;
+            }
+
             // 减少健康值
             int oldHealth = currentHealth;
             currentHealth = Mathf.Max(currentHealth - decayAmount, 0);
+            
+            // 立即同步数据到GameDataManager
+            SyncToGameDataManager();
             
             // 发送提示信息
             string message = $"时间流逝：健康值减少 {decayAmount} 点 ({oldHealth} -> {currentHealth})";
@@ -576,6 +645,17 @@ public class Player : MonoBehaviour
             if (currentHealth <= 0)
             {
                 Debug.Log("[Player] 健康值归零，角色状态恶化");
+                
+                // 触发游戏结束
+                if (GameEndManager.Instance != null)
+                {
+                    GameEndManager.Instance.EndGame(GameEndManager.GameEndReason.HealthZero);
+                }
+                else
+                {
+                    Debug.LogWarning("[Player] GameEndManager实例未找到，无法触发游戏结束");
+                }
+                
                 break;
             }
         }
@@ -609,8 +689,24 @@ public class Player : MonoBehaviour
             }
         }
         
-        // 同步数据到GameDataManager
+        // 立即同步数据到GameDataManager
         SyncToGameDataManager();
+        
+        // 检查生命值是否归零
+        if (currentHealth <= 0 && oldHealth > 0)
+        {
+            Debug.Log("[Player] 生命值归零，触发游戏结束");
+            
+            // 触发游戏结束
+            if (GameEndManager.Instance != null)
+            {
+                GameEndManager.Instance.EndGame(GameEndManager.GameEndReason.HealthZero);
+            }
+            else
+            {
+                Debug.LogWarning("[Player] GameEndManager实例未找到，无法触发游戏结束");
+            }
+        }
         
         if (showDebugInfo)
         {
@@ -638,6 +734,9 @@ public class Player : MonoBehaviour
         {
             currentHealth = maxHealth;
         }
+        
+        // 立即同步数据到GameDataManager
+        SyncToGameDataManager();
         
         if (showDebugInfo)
         {
@@ -684,6 +783,24 @@ public class Player : MonoBehaviour
                 return "健康阶段3";
             default:
                 return "未知阶段";
+        }
+    }
+
+    public int GetHealthStageNumber()
+    {
+        float percentage = HealthPercentage;
+        
+        if (percentage >= 0.6f) // 60%以上为阶段1
+        {
+            return 1;
+        }
+        else if (percentage >= 0.25f) // 25%-59%为阶段2
+        {
+            return 2;
+        }
+        else // 24%以下为阶段3
+        {
+            return 3;
         }
     }
     

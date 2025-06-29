@@ -99,7 +99,21 @@ public class Door : MonoBehaviour
     {
         if (isInteracting) return;
         
-        Debug.Log("[Door] 点击了门，准备切换场景！");
+        // 检查玩家距离
+        if (playerTransform == null)
+        {
+            Debug.LogWarning("[Door] 未找到玩家，无法进行距离检查");
+            return;
+        }
+        
+        float distance = Vector2.Distance(transform.position, playerTransform.position);
+        if (distance > closeDistance)
+        {
+            Debug.Log($"[Door] 玩家距离太远 ({distance:F2} > {closeDistance})，无法点击门");
+            return;
+        }
+        
+        Debug.Log($"[Door] 点击了门，玩家距离: {distance:F2}，准备切换场景！");
         
         // 检查目标场景是否存在
         if (string.IsNullOrEmpty(targetSceneName))

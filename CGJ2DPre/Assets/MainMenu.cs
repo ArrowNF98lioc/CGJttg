@@ -11,7 +11,7 @@ public class MainMenu : MonoBehaviour
     public void PlayGame()
     {
         Debug.Log("[MainMenu] 开始游戏");
-        LoadSceneWithDataSync(1);
+        LoadSceneWithDataSync("Home");
     }
 
     public void QuitGame()
@@ -25,25 +25,25 @@ public class MainMenu : MonoBehaviour
     public void OpenMenu()
     {
         Debug.Log("[MainMenu] 打开主菜单");
-        LoadSceneWithDataSync(0);
+        LoadSceneWithDataSync("MainMenu");
     }
 
     public void ReturnHome()
     {
         Debug.Log("[MainMenu] 返回家中");
-        LoadSceneWithDataSync(1);
+        LoadSceneWithDataSync("Home");
     }
 
     public void OpenGallery()
     {
         Debug.Log("[MainMenu] 打开画廊");
-        LoadSceneWithDataSync(2);
+        LoadSceneWithDataSync("Gallery");
     }
 
     public void OpenShop()
     {
         Debug.Log("[MainMenu] 打开商店");
-        LoadSceneWithDataSync(3);
+        LoadSceneWithDataSync("Shop");
     }
     
     /// <summary>
@@ -223,6 +223,30 @@ public class MainMenu : MonoBehaviour
         else
         {
             Debug.LogWarning("[MainMenu] SceneDataManager未找到，无法强制刷新数据");
+        }
+    }
+
+    public void RestartGame()
+    {
+        if (GameEndManager.Instance != null)
+        {
+            GameEndManager.Instance.RestartGame();
+        }
+        else
+        {
+            Debug.LogWarning("[MainMenu] GameEndManager未找到，无法调用RestartGame方法");
+        }
+    }
+
+    public void ResetAllGameData()
+    {
+        if (GameDataManager.Instance != null)
+        {
+            GameDataManager.Instance.ResetAllGameData();
+        }
+        else
+        {
+            Debug.LogWarning("[MainMenu] GameDataManager未找到，无法调用ResetAllGameData方法");
         }
     }
 }

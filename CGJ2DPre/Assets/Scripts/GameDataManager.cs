@@ -15,6 +15,9 @@ public class GameDataManager : MonoBehaviour
     [Header("调试")]
     [SerializeField] private bool showDebugInfo = false;
     
+    // 添加初始化标志，确保只在第一次初始化
+    private static bool isInitialized = false;
+    
     // 游戏状态数据
     [Header("游戏状态")]
     public bool isFirstTimePlaying = true;  // 是否首次游戏
@@ -24,7 +27,7 @@ public class GameDataManager : MonoBehaviour
     // 玩家数据
     [Header("玩家数据")]
     public int playerMaxHealth = 100;       // 玩家最大生命值
-    public int playerCurrentHealth = 100;   // 玩家当前生命值
+    public int playerCurrentHealth = 59;   // 玩家当前生命值
     public string playerCurrentItem = "";   // 玩家当前物品
     
     // 游戏进度数据
@@ -41,6 +44,10 @@ public class GameDataManager : MonoBehaviour
     public bool enableTimeDecay = true;     // 是否启用时间流逝
     public float timeDecayInterval = 6f;    // 时间流逝间隔
     public int timeDecayAmount = 2;         // 时间流逝数量
+
+    // 物品状态数据
+    [Header("物品状态")]
+    public Dictionary<string, PickableItem.ItemStateType> itemStates = new Dictionary<string, PickableItem.ItemStateType>();  // 物品状态
     
     private void Awake()
     {
@@ -51,8 +58,18 @@ public class GameDataManager : MonoBehaviour
             DontDestroyOnLoad(gameObject);
             Debug.Log("[GameDataManager] 全局游戏数据管理器初始化完成");
             
-            // 初始化默认数据
-            InitializeDefaultData();
+            // 立即设置正确的初始值，避免被场景文件覆盖
+            playerMaxHealth = 100;
+            playerCurrentHealth = 59;
+            playerCurrentItem = "";
+            
+            // 只在第一次初始化时调用，避免场景重新加载时重置数据
+            if (!isInitialized)
+            {
+                InitializeDefaultData();
+                isInitialized = true;
+                Debug.Log("[GameDataManager] 首次初始化默认数据完成");
+            }
             
             // 订阅场景加载事件
             SceneManager.sceneLoaded += OnSceneLoaded;
@@ -106,6 +123,11 @@ public class GameDataManager : MonoBehaviour
         
         Debug.Log("[GameDataManager] 场景数据同步完成");
     }
+
+    // void Update()
+    // {
+    //     SyncAllGameData();
+    // }
     
     /// <summary>
     /// 同步所有游戏数据到各个组件
@@ -115,14 +137,20 @@ public class GameDataManager : MonoBehaviour
         // 同步Player数据
         SyncDataToPlayer();
         
-        // 同步Inventory数据
-        SyncDataToInventory();
+        // 同步PlayerController数据
+        SyncDataToPlayerController();
+
+        // 同步物品状态到场景（包含SetItemSprite调用）
+        SyncItemStatesToScene();
+
+        // 同步Inventory数据, 暂时尝试不用
+        // SyncDataToInventory();
         
-        // 同步UI数据
-        SyncDataToUI();
+        // 同步UI数据, 暂时尝试不用
+        // SyncDataToUI();
         
-        // 同步ItemManager数据
-        SyncDataToItemManager();
+        // 同步ItemManager数据, 暂时尝试不用
+        // SyncDataToItemManager();
         
         if (showDebugInfo)
         {
@@ -137,21 +165,14 @@ public class GameDataManager : MonoBehaviour
     {
         if (Player.Instance != null)
         {
-            // 同步生命值
+            // 检查Player是否已经初始化完成
+            // 如果Player还没有从GameDataManager加载过数据，则强制同步
+            // 如果Player已经初始化，则只在必要时同步
+            
+            // 同步生命值 - 优先使用GameDataManager的数据
             Player.Instance.MaxHealth = playerMaxHealth;
             Player.Instance.CurrentHealth = playerCurrentHealth;
             
-            // 同步当前物品
-            if (!string.IsNullOrEmpty(playerCurrentItem))
-            {
-                Item item = ItemManager.Instance?.GetItem(playerCurrentItem);
-                if (item != null)
-                {
-                    Player.Instance.currentItem = item;
-                }
-            }
-            
-            // 更新健康阶段
             Player.Instance.UpdateHealthStage();
             
             if (showDebugInfo)
@@ -164,68 +185,45 @@ public class GameDataManager : MonoBehaviour
             Debug.LogWarning("[GameDataManager] Player实例未找到，无法同步数据");
         }
     }
-    
+
     /// <summary>
-    /// 同步数据到Inventory组件
-    /// </summary>
-    public void SyncDataToInventory()
+    /// 同步数据到PlayerController组件
+    /// </summary> 
+    public void SyncDataToPlayerController()
     {
-        if (Inventory.Instance != null)
+        if (PlayerController.Instance != null)
         {
-            //if (showDebugInfo)
-            //{
-            //    Debug.Log($"[GameDataManager] 开始同步Inventory数据: 当前背包物品数={Inventory.Instance.CurrentItemCount}/{Inventory.Instance.MaxSlots}");
-            //    Debug.Log($"[GameDataManager] 需要同步的物品数量: {collectedItems.Count}");
-            //}
+            // 同步生命值
+            PlayerController.Instance.playerHealth.MaxHealth = playerMaxHealth;
+            PlayerController.Instance.playerHealth.CurrentHealth = playerCurrentHealth;
             
-            //// 如果背包已满，先进行诊断
-            //if (Inventory.Instance.IsFull)
-            //{
-            //    Debug.LogWarning("[GameDataManager] 检测到背包已满，进行诊断...");
-            //    Inventory.Instance.DiagnoseInventoryIssues();
-            //}
+            // 同步当前物品
+            if (!string.IsNullOrEmpty(playerCurrentItem))
+            {
+                Item item = ItemManager.Instance?.GetItem(playerCurrentItem);
+                if (item != null)
+                {
+                    PlayerController.Instance.playerHealth.currentItem = item;
+                }
+            }
             
-            //// 清空当前背包
-            //Inventory.Instance.ClearInventory();
+            // 更新健康阶段
+            PlayerController.Instance.playerHealth.UpdateHealthStage();
             
-            //// 重新添加已收集的物品
-            //int successCount = 0;
-            //int failCount = 0;
-            
-            //foreach (string itemName in collectedItems)
-            //{
-            //    bool success = Inventory.Instance.AddItem(itemName);
-            //    if (success)
-            //    {
-            //        successCount++;
-            //        if (showDebugInfo)
-            //        {
-            //            Debug.Log($"[GameDataManager] 成功添加物品: {itemName}");
-            //        }
-            //    }
-            //    else
-            //    {
-            //        failCount++;
-            //        Debug.LogError($"[GameDataManager] 无法添加物品到背包: {itemName} - 背包可能已满或物品不存在");
-            //    }
-            //}
-            
-            // 更新背包显示
-            Inventory.Instance.UpdateInventoryDisplay();
-            
-            //if (showDebugInfo)
-            //{
-            //    Debug.Log($"[GameDataManager] 同步Inventory数据完成: 成功={successCount}, 失败={failCount}, 最终背包物品数={Inventory.Instance.CurrentItemCount}");
-            //}
+            if (showDebugInfo)
+            {
+                Debug.Log($"[GameDataManager] 同步PlayerController数据: 生命值={playerCurrentHealth}/{playerMaxHealth}, 物品={playerCurrentItem}");
+            }
         }
         else
         {
-            Debug.LogWarning("[GameDataManager] Inventory实例未找到，无法同步数据");
+            Debug.LogWarning("[GameDataManager] PlayerController实例未找到，无法同步数据");
         }
     }
     
+    
     /// <summary>
-    /// 同步数据到UI组件
+    /// 同步数据到UI组件, 暂时尝试不用
     /// </summary>
     public void SyncDataToUI()
     {
@@ -256,7 +254,7 @@ public class GameDataManager : MonoBehaviour
     }
     
     /// <summary>
-    /// 同步数据到ItemManager组件
+    /// 同步数据到ItemManager组件, 暂时尝试不用
     /// </summary>
     public void SyncDataToItemManager()
     {
@@ -285,28 +283,238 @@ public class GameDataManager : MonoBehaviour
     }
     
     /// <summary>
+    /// 同步物品状态数据
+    /// </summary>
+    public void SyncDataToItemStates()
+    {
+        // 查找场景中所有的PickableItem
+        PickableItem[] pickableItems = FindObjectsOfType<PickableItem>();
+        
+        foreach (PickableItem pickableItem in pickableItems)
+        {
+            if (pickableItem != null && !string.IsNullOrEmpty(pickableItem.itemName))
+            {
+                // 如果GameDataManager中有该物品的状态记录，则同步到场景
+                if (itemStates.ContainsKey(pickableItem.itemName))
+                {
+                    pickableItem.currentState = itemStates[pickableItem.itemName];
+                    
+                    if (showDebugInfo)
+                    {
+                        Debug.Log($"[GameDataManager] 同步物品状态到场景: {pickableItem.itemName} = {itemStates[pickableItem.itemName]}");
+                    }
+                }
+            }
+        }
+        
+        if (showDebugInfo)
+        {
+            Debug.Log($"[GameDataManager] 物品状态同步完成，共同步 {pickableItems.Length} 个物品");
+        }
+    }
+    
+    /// <summary>
+    /// 将GameDataManager中的物品状态同步到场景中的PickableItem
+    /// </summary>
+    public void SyncItemStatesToScene()
+    {
+        // 查找场景中所有的PickableItem
+        PickableItem[] pickableItems = FindObjectsOfType<PickableItem>();
+        
+        foreach (PickableItem pickableItem in pickableItems)
+        {
+            if (pickableItem != null && !string.IsNullOrEmpty(pickableItem.itemName))
+            {
+                // 如果GameDataManager中有该物品的状态记录，则同步到场景
+                if (itemStates.ContainsKey(pickableItem.itemName))
+                {
+                    pickableItem.currentState = itemStates[pickableItem.itemName];
+                    
+                    // 检查PickableItem是否已经初始化完成
+                    if (pickableItem.IsReady())
+                    {
+                        // 根据状态更新物品的显示
+                        pickableItem.SetItemSprite();
+                        
+                        if (showDebugInfo)
+                        {
+                            Debug.Log($"[GameDataManager] 同步到场景物品状态: {pickableItem.itemName} = {pickableItem.currentState}");
+                        }
+                    }
+                    else
+                    {
+                        if (showDebugInfo)
+                        {
+                            Debug.LogWarning($"[GameDataManager] PickableItem {pickableItem.itemName} 的UI GameObject未设置，跳过SetItemSprite调用");
+                        }
+                    }
+                }
+            }
+        }
+        
+        if (showDebugInfo)
+        {
+            Debug.Log($"[GameDataManager] 场景物品状态同步完成，共同步 {pickableItems.Length} 个物品");
+        }
+    }
+    
+    /// <summary>
+    /// 更新特定物品的状态
+    /// </summary>
+    /// <param name="itemName">物品名称</param>
+    /// <param name="newState">新状态</param>
+    public void UpdateItemState(string itemName, PickableItem.ItemStateType newState)
+    {
+        if (!string.IsNullOrEmpty(itemName))
+        {
+            // 如果要设置为Selected，先把其它物品的Selected取消
+            if (newState == PickableItem.ItemStateType.Selected)
+            {
+                foreach (var key in itemStates.Keys)
+                {
+                    if (key != itemName && itemStates[key] == PickableItem.ItemStateType.Selected)
+                    {
+                        itemStates[key] = PickableItem.ItemStateType.AtHome; // 或其它非Selected状态
+                    }
+                }
+            }
+            itemStates[itemName] = newState;
+            
+            // 立即同步到场景中的PickableItem
+            SyncItemStatesToScene();
+            
+            // 如果物品状态变为Solved，检查是否所有物品都被当掉
+            if (newState == PickableItem.ItemStateType.Solved)
+            {
+                CheckAllItemsSold();
+            }
+            
+            if (showDebugInfo)
+            {
+                Debug.Log($"[GameDataManager] 更新物品状态: {itemName} = {newState}");
+            }
+        }
+    }
+    
+    /// <summary>
+    /// 检查是否所有物品都被当掉
+    /// </summary>
+    private void CheckAllItemsSold()
+    {
+        int totalItems = 0;
+        int soldItems = 0;
+        
+        foreach (var itemState in itemStates)
+        {
+            totalItems++;
+            if (itemState.Value == PickableItem.ItemStateType.Solved)
+            {
+                soldItems++;
+            }
+        }
+        
+        // 如果所有物品都被当掉（状态为Solved）
+        if (totalItems > 0 && soldItems == totalItems)
+        {
+            Debug.Log("[GameDataManager] 所有物品都被当掉，触发游戏结束");
+            
+            // 触发游戏结束
+            if (GameEndManager.Instance != null)
+            {
+                GameEndManager.Instance.EndGame(GameEndManager.GameEndReason.AllItemsSold);
+            }
+            else
+            {
+                Debug.LogWarning("[GameDataManager] GameEndManager实例未找到，无法触发游戏结束");
+            }
+        }
+    }
+    
+    /// <summary>
+    /// 获取特定物品的状态
+    /// </summary>
+    /// <param name="itemName">物品名称</param>
+    /// <returns>物品状态，如果不存在则返回AtHome</returns>
+    public PickableItem.ItemStateType GetItemState(string itemName)
+    {
+        if (!string.IsNullOrEmpty(itemName) && itemStates.ContainsKey(itemName))
+        {
+            return itemStates[itemName];
+        }
+        return PickableItem.ItemStateType.AtHome; // 默认状态
+    }
+    
+    /// <summary>
+    /// 检查是否有其他物品处于Selected状态
+    /// </summary>
+    /// <param name="excludeItemName">要排除的物品名称（通常是当前物品）</param>
+    /// <returns>是否有其他物品处于Selected状态</returns>
+    public bool HasOtherItemSelected(string excludeItemName = "")
+    {
+        foreach (var itemState in itemStates)
+        {
+            if (itemState.Key != excludeItemName && itemState.Value == PickableItem.ItemStateType.Selected)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    /// <summary>
+    /// 获取当前Selected状态的物品名称
+    /// </summary>
+    /// <returns>Selected状态的物品名称，如果没有则返回空字符串</returns>
+    public string GetSelectedItemName()
+    {
+        foreach (var itemState in itemStates)
+        {
+            if (itemState.Value == PickableItem.ItemStateType.Selected)
+            {
+                return itemState.Key;
+            }
+        }
+        return "";
+    }
+    
+    /// <summary>
     /// 初始化默认数据
     /// </summary>
     private void InitializeDefaultData()
     {
         // 初始化游戏标记
-        if (gameFlags.Count == 0)
-        {
-            gameFlags["hasVisitedHome"] = false;
-            gameFlags["hasVisitedShop"] = false;
-            gameFlags["hasVisitedGallery"] = false;
-            gameFlags["hasCollectedNecklace"] = false;
-            gameFlags["hasCollectedTeapot"] = false;
-            gameFlags["hasCollectedPlant"] = false;
-            gameFlags["hasCollectedCat"] = false;
-        }
+        gameFlags["hasVisitedHome"] = false;
+        gameFlags["hasVisitedShop"] = false;
+        gameFlags["hasVisitedGallery"] = false;
+        gameFlags["hasCollectedNecklace"] = false;
+        gameFlags["hasCollectedBottle"] = false;
+        gameFlags["hasCollectedPlant"] = false;
+        gameFlags["hasCollectedCat"] = false;
+        gameFlags["hasCollectedBird"] = false;
+        gameFlags["hasCollectedDress"] = false;
+        gameFlags["hasCollectedOscar"] = false;
+        gameFlags["hasCollectedDiary"] = false;
+        
+        // 初始化物品状态
+        itemStates["Necklace"] = PickableItem.ItemStateType.AtHome;
+        itemStates["Bottle"] = PickableItem.ItemStateType.AtHome;
+        itemStates["Plant"] = PickableItem.ItemStateType.AtHome;
+        itemStates["Cat"] = PickableItem.ItemStateType.AtHome;
+        itemStates["Bird"] = PickableItem.ItemStateType.AtHome;
+        itemStates["Dress"] = PickableItem.ItemStateType.AtHome;
+        itemStates["Oscar"] = PickableItem.ItemStateType.AtHome;
+        itemStates["Diary"] = PickableItem.ItemStateType.AtHome;
         
         // 初始化已解锁场景
-        if (unlockedScenes.Count == 0)
-        {
-            unlockedScenes.Add("MainMenu");
-            unlockedScenes.Add("Home");
-        }
+        unlockedScenes.Add("MainMenu");
+        unlockedScenes.Add("Home");
+        unlockedScenes.Add("Gallery");
+        unlockedScenes.Add("Shop");
+        
+        // 确保玩家数据使用正确的初始值
+        playerMaxHealth = 100;
+        playerCurrentHealth = 59;  // 强制设置为59，覆盖场景文件中的值
+        playerCurrentItem = "";
         
         Debug.Log("[GameDataManager] 默认数据初始化完成");
     }
@@ -467,7 +675,7 @@ public class GameDataManager : MonoBehaviour
         
         // 重置玩家数据
         playerMaxHealth = 100;
-        playerCurrentHealth = 100;
+        playerCurrentHealth = 59;
         playerCurrentItem = "";
         
         // 重置游戏进度
@@ -475,8 +683,12 @@ public class GameDataManager : MonoBehaviour
         unlockedScenes.Clear();
         gameFlags.Clear();
         
+        // 重置初始化标志，允许重新初始化
+        isInitialized = false;
+        
         // 重新初始化默认数据
         InitializeDefaultData();
+        isInitialized = true;
         
         Debug.Log("[GameDataManager] 游戏数据重置完成");
     }
@@ -488,7 +700,7 @@ public class GameDataManager : MonoBehaviour
     {
         // 同步当前数据
         SyncPlayerData();
-        SyncInventoryData();
+        // SyncInventoryData();
         
         Debug.Log("[GameDataManager] 游戏数据已保存");
         
@@ -498,9 +710,10 @@ public class GameDataManager : MonoBehaviour
         }
     }
     
-    /// <summary>
-    /// 加载游戏数据（可以扩展为实际的文件加载）
-    /// </summary>
+    // / <summary>
+    // / 加载游戏数据（可以扩展为实际的文件加载）
+    // / 你妈的跟本没用？？？
+    // / </summary>
     public void LoadGameData()
     {
         Debug.Log("[GameDataManager] 游戏数据已加载");
